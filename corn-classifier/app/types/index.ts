@@ -6,6 +6,8 @@ export type AnalysisResult = {
   inferenceTime: number;
 };
 
+export type ModelType = "1d-cnn" | "svm" | "pls-da";
+
 export type ProcessingStep = {
   id: number;
   label: string;
@@ -19,6 +21,7 @@ export type ScreenStep = 1 | 2 | 3;
 export type AnalysisRequest = {
   modelFile: File;
   spectralFile: File;
+  modelType: ModelType;
 };
 
 export type AnalysisResponse = {

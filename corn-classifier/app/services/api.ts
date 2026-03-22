@@ -61,6 +61,8 @@ async function mockAnalyzeSpectralData(
   request: AnalysisRequest,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResponse> {
+  void request.modelType;
+
   const steps: ProcessingStep[] = [
     { id: 1, label: "Loading Model", subLabel: "Retrieving trained 1D-CNN model (.h5)", status: "pending" },
     { id: 2, label: "Preprocessing", subLabel: "Applying Savitzky-Golay smoothing filter", status: "pending" },
