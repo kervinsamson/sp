@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { analyzeSpectralData } from "@/app/services/api";
-import { AnalysisResult, ModelType, ProcessingStep } from "@/app/types";
+import { analyzeSpectralData, previewSpectrumFile } from "@/app/services/api";
+import { AnalysisResult, ModelType, ProcessingStep, SpectrumPoint, SpectrumPreviewResponse } from "@/app/types";
 import {
   UploadCloud, FileCode, FileDigit, Database, ArrowRight,
   CheckCircle2, AlertCircle, Clock, RefreshCw, Loader2, Sparkles,
@@ -84,9 +84,17 @@ export default function Home() {
     { id: 3, label: "Inferencing", subLabel: "Running spectral data through neural network", status: "pending" },
   ]);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [spectrumPreview, setSpectrumPreview] = useState<SpectrumPreviewResponse | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isSpectrumZoomed, setIsSpectrumZoomed] = useState(false);
   const confidenceComputation = result
     ? getConfidenceComputation(modelType, result.isBt, result.confidence)
     : null;
+  const normalizedResultSpectrum = normalizeSpectrumPoints(result?.spectrum);
+  const displaySpectrumSource = spectrumPreview ?? result;
+  const normalizedSpectrum = normalizeSpectrumPoints(displaySpectrumSource?.spectrum);
+  const spectrumPlot = normalizedSpectrum.length > 1 ? buildSpectrumPath(normalizedSpectrum) : null;
 
   // Sync dark class on <html>
   useEffect(() => {
@@ -104,10 +112,42 @@ export default function Home() {
     }
   }, [darkMode]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "model" | "data") => {
-    if (e.target.files?.[0]) {
-      if (type === "model") setModelFile(e.target.files[0]);
-      else setSpectralFile(e.target.files[0]);
+  useEffect(() => {
+    if (!isSpectrumZoomed) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsSpectrumZoomed(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isSpectrumZoomed]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "model" | "data") => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (type === "model") {
+      setModelFile(selectedFile);
+      return;
+    }
+
+    setSpectralFile(selectedFile);
+    setResult(null);
+    setSpectrumPreview(null);
+    setPreviewError(null);
+    setIsPreviewLoading(true);
+
+    try {
+      const preview = await previewSpectrumFile(selectedFile);
+      setSpectrumPreview(preview);
+    } catch (error) {
+      console.error("Spectrum preview failed:", error);
+      setPreviewError("Unable to preview this file. Please verify the .spa/.csv format.");
+    } finally {
+      setIsPreviewLoading(false);
     }
   };
 
@@ -144,12 +184,15 @@ export default function Home() {
   const fullReset = () => {
     setModelFile(null);
     setSpectralFile(null);
+    setSpectrumPreview(null);
+    setPreviewError(null);
+    setIsPreviewLoading(false);
     resetAnalysis();
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans p-6 md:p-12 transition-colors duration-300">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
 
         {/* Header */}
         <header className="mb-8 flex items-start justify-between">
@@ -168,10 +211,127 @@ export default function Home() {
           </button>
         </header>
 
-        {/* Two-column layout */}
-        <main className="grid lg:grid-cols-2 gap-6 items-stretch">
+        {/* Three-column layout */}
+        <main className="grid grid-cols-1 md:grid-cols-2 xl:[grid-template-columns:minmax(24rem,1.45fr)_minmax(18rem,0.9fr)_minmax(24rem,1.45fr)] gap-6 items-stretch">
 
-          {/* ── LEFT: Upload Panel ── */}
+          {/* ── LEFT: Spectrum Preview ── */}
+          <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6 flex flex-col">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Input Spectrum Preview
+              </h4>
+              {displaySpectrumSource?.spectrumMeta?.preprocessing && (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-md">
+                  {displaySpectrumSource.spectrumMeta.preprocessing}
+                </span>
+              )}
+            </div>
+
+            {!spectralFile && (
+              <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-5 text-center text-xs text-slate-500 dark:text-slate-400 flex-1 flex items-center justify-center">
+                Upload a .spa or .csv spectral file to display the waveform.
+              </div>
+            )}
+
+            {spectralFile && isPreviewLoading && (
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-5 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2 flex-1">
+                <Loader2 size={14} className="animate-spin" /> Parsing uploaded spectrum…
+              </div>
+            )}
+
+            {spectralFile && !isPreviewLoading && previewError && (
+              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-4 py-5 text-center text-xs text-red-700 dark:text-red-300 flex-1 flex items-center justify-center">
+                {previewError}
+              </div>
+            )}
+
+            {spectralFile && !isPreviewLoading && !previewError && spectrumPlot && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsSpectrumZoomed(true)}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 cursor-zoom-in text-left"
+                  aria-label="Zoom spectrum preview"
+                >
+                  <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="w-full h-64">
+                    <line
+                      x1={CHART_PADDING.left}
+                      y1={CHART_HEIGHT - CHART_PADDING.bottom}
+                      x2={CHART_WIDTH - CHART_PADDING.right}
+                      y2={CHART_HEIGHT - CHART_PADDING.bottom}
+                      className="stroke-slate-300 dark:stroke-slate-600"
+                      strokeWidth="1"
+                    />
+                    <line
+                      x1={CHART_PADDING.left}
+                      y1={CHART_PADDING.top}
+                      x2={CHART_PADDING.left}
+                      y2={CHART_HEIGHT - CHART_PADDING.bottom}
+                      className="stroke-slate-300 dark:stroke-slate-600"
+                      strokeWidth="1"
+                    />
+                    <path
+                      d={spectrumPlot.path}
+                      fill="none"
+                      className="stroke-blue-600 dark:stroke-blue-400"
+                      strokeWidth="2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <text
+                      x={CHART_PADDING.left}
+                      y={CHART_HEIGHT - 8}
+                      className="fill-slate-500 dark:fill-slate-400"
+                      fontSize="11"
+                    >
+                      {normalizedSpectrum[0].wavelength.toFixed(0)} {displaySpectrumSource?.spectrumMeta?.xUnit ?? "cm⁻¹"}
+                    </text>
+                    <text
+                      x={CHART_WIDTH - CHART_PADDING.right}
+                      y={CHART_HEIGHT - 8}
+                      textAnchor="end"
+                      className="fill-slate-500 dark:fill-slate-400"
+                      fontSize="11"
+                    >
+                      {normalizedSpectrum[normalizedSpectrum.length - 1].wavelength.toFixed(0)} {displaySpectrumSource?.spectrumMeta?.xUnit ?? "cm⁻¹"}
+                    </text>
+                    <text
+                      x={CHART_PADDING.left + 4}
+                      y={CHART_PADDING.top + 10}
+                      className="fill-slate-500 dark:fill-slate-400"
+                      fontSize="11"
+                    >
+                      {spectrumPlot.yMax.toFixed(3)} {displaySpectrumSource?.spectrumMeta?.yUnit ?? "a.u."}
+                    </text>
+                    <text
+                      x={CHART_PADDING.left + 4}
+                      y={CHART_HEIGHT - CHART_PADDING.bottom - 4}
+                      className="fill-slate-500 dark:fill-slate-400"
+                      fontSize="11"
+                    >
+                      {spectrumPlot.yMin.toFixed(3)} {displaySpectrumSource?.spectrumMeta?.yUnit ?? "a.u."}
+                    </text>
+                  </svg>
+                </button>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    Points: {(displaySpectrumSource?.dataPoints ?? normalizedSpectrum.length) || "—"}
+                  </span>
+                  <span>
+                    Range: {displaySpectrumSource?.wavelengthRange ?? `${normalizedSpectrum[0].wavelength.toFixed(0)} - ${normalizedSpectrum[normalizedSpectrum.length - 1].wavelength.toFixed(0)} ${displaySpectrumSource?.spectrumMeta?.xUnit ?? "cm⁻¹"}`}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Click the graph to zoom.</p>
+              </>
+            )}
+
+            {spectralFile && !isPreviewLoading && !previewError && !spectrumPlot && (
+              <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-5 text-center text-xs text-slate-500 dark:text-slate-400 flex-1 flex items-center justify-center">
+                Spectrum points were not returned for this file.
+              </div>
+            )}
+          </section>
+
+          {/* ── MIDDLE: Upload Panel ── */}
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col">
             <div className="p-6 flex flex-col flex-1">
               <h2 className="text-base font-semibold mb-1 text-slate-900 dark:text-slate-100">Configuration &amp; Input</h2>
@@ -395,7 +555,9 @@ export default function Home() {
                         </div>
                         <div>
                           <span className="text-slate-400 dark:text-slate-500 block">Data Points</span>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">601</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">
+                            {(result.dataPoints ?? normalizedResultSpectrum.length) || "—"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -410,7 +572,7 @@ export default function Home() {
                         </li>
                         <li className="flex justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5">
                           <span className="text-slate-500 dark:text-slate-400">Range</span>
-                          <span className="font-medium text-slate-900 dark:text-slate-200">4000–10000 cm⁻¹</span>
+                          <span className="font-medium text-slate-900 dark:text-slate-200">{result.wavelengthRange ?? "—"}</span>
                         </li>
                         <li className="flex justify-between pt-0.5">
                           <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
@@ -456,7 +618,146 @@ export default function Home() {
             </div>
           </div>
         </main>
+
+        {isSpectrumZoomed && spectrumPlot && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 p-4 md:p-8 flex items-center justify-center"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setIsSpectrumZoomed(false)}
+          >
+            <div
+              className="w-full max-w-6xl bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4 md:p-6"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Input Spectrum (Zoomed)</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsSpectrumZoomed(false)}
+                  className="text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2">
+                <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="w-full h-[65vh]">
+                  <line
+                    x1={CHART_PADDING.left}
+                    y1={CHART_HEIGHT - CHART_PADDING.bottom}
+                    x2={CHART_WIDTH - CHART_PADDING.right}
+                    y2={CHART_HEIGHT - CHART_PADDING.bottom}
+                    className="stroke-slate-300 dark:stroke-slate-600"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1={CHART_PADDING.left}
+                    y1={CHART_PADDING.top}
+                    x2={CHART_PADDING.left}
+                    y2={CHART_HEIGHT - CHART_PADDING.bottom}
+                    className="stroke-slate-300 dark:stroke-slate-600"
+                    strokeWidth="1"
+                  />
+                  <path
+                    d={spectrumPlot.path}
+                    fill="none"
+                    className="stroke-blue-600 dark:stroke-blue-400"
+                    strokeWidth="2"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <text
+                    x={CHART_PADDING.left}
+                    y={CHART_HEIGHT - 8}
+                    className="fill-slate-500 dark:fill-slate-400"
+                    fontSize="11"
+                  >
+                    {normalizedSpectrum[0].wavelength.toFixed(0)} {displaySpectrumSource?.spectrumMeta?.xUnit ?? "cm⁻¹"}
+                  </text>
+                  <text
+                    x={CHART_WIDTH - CHART_PADDING.right}
+                    y={CHART_HEIGHT - 8}
+                    textAnchor="end"
+                    className="fill-slate-500 dark:fill-slate-400"
+                    fontSize="11"
+                  >
+                    {normalizedSpectrum[normalizedSpectrum.length - 1].wavelength.toFixed(0)} {displaySpectrumSource?.spectrumMeta?.xUnit ?? "cm⁻¹"}
+                  </text>
+                  <text
+                    x={CHART_PADDING.left + 4}
+                    y={CHART_PADDING.top + 10}
+                    className="fill-slate-500 dark:fill-slate-400"
+                    fontSize="11"
+                  >
+                    {spectrumPlot.yMax.toFixed(3)} {displaySpectrumSource?.spectrumMeta?.yUnit ?? "a.u."}
+                  </text>
+                  <text
+                    x={CHART_PADDING.left + 4}
+                    y={CHART_HEIGHT - CHART_PADDING.bottom - 4}
+                    className="fill-slate-500 dark:fill-slate-400"
+                    fontSize="11"
+                  >
+                    {spectrumPlot.yMin.toFixed(3)} {displaySpectrumSource?.spectrumMeta?.yUnit ?? "a.u."}
+                  </text>
+                </svg>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                Press Esc or click outside the chart to close.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+const CHART_WIDTH = 800;
+const CHART_HEIGHT = 260;
+const CHART_PADDING = { top: 16, right: 18, bottom: 28, left: 44 };
+
+function normalizeSpectrumPoints(points: SpectrumPoint[] | undefined): SpectrumPoint[] {
+  if (!points?.length) return [];
+
+  return points
+    .filter((point) => Number.isFinite(point.wavelength) && Number.isFinite(point.intensity))
+    .sort((left, right) => left.wavelength - right.wavelength);
+}
+
+function buildSpectrumPath(points: SpectrumPoint[]): { path: string; yMin: number; yMax: number } {
+  const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
+  const plotHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+
+  const xMin = points[0].wavelength;
+  const xMax = points[points.length - 1].wavelength;
+
+  let yMin = points[0].intensity;
+  let yMax = points[0].intensity;
+
+  for (const point of points) {
+    if (point.intensity < yMin) yMin = point.intensity;
+    if (point.intensity > yMax) yMax = point.intensity;
+  }
+
+  if (yMax === yMin) {
+    yMin -= 1;
+    yMax += 1;
+  }
+
+  const toX = (wavelength: number) => {
+    if (xMax === xMin) return CHART_PADDING.left;
+    return CHART_PADDING.left + ((wavelength - xMin) / (xMax - xMin)) * plotWidth;
+  };
+
+  const toY = (intensity: number) =>
+    CHART_PADDING.top + plotHeight - ((intensity - yMin) / (yMax - yMin)) * plotHeight;
+
+  const path = points
+    .map((point, index) => {
+      const x = toX(point.wavelength);
+      const y = toY(point.intensity);
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  return { path, yMin, yMax };
 }

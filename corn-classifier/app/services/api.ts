@@ -8,7 +8,7 @@
  * 3. The mock implementations will automatically be bypassed
  */
 
-import { AnalysisRequest, AnalysisResponse, ProcessingStep } from "@/app/types";
+import { AnalysisRequest, AnalysisResponse, ProcessingStep, SpectrumPoint, SpectrumPreviewResponse } from "@/app/types";
 
 // Configuration
 const USE_MOCK_API = true; // Set to false when backend is ready
@@ -16,6 +16,39 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Types for progress callback
 type ProgressCallback = (progress: number, steps: ProcessingStep[]) => void;
+
+export async function previewSpectrumFile(spectralFile: File): Promise<SpectrumPreviewResponse> {
+  if (USE_MOCK_API) {
+    const modelHint = inferModelHintFromFilename(spectralFile.name);
+    const spectrum = generateMockSpectrum(modelHint);
+
+    return {
+      dataPoints: spectrum.length,
+      wavelengthRange: "4000 - 10000 cm⁻¹",
+      spectrum,
+      spectrumMeta: {
+        xUnit: "cm⁻¹",
+        yUnit: "Absorbance",
+        preprocessing: "Raw upload preview",
+      },
+    };
+  }
+
+  const formData = new FormData();
+  formData.append("spectral_data", spectralFile);
+
+  const response = await fetch(`${API_BASE_URL}/api/preview-spectrum`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Spectrum preview failed: ${response.statusText}`);
+  }
+
+  const preview: SpectrumPreviewResponse = await response.json();
+  return preview;
+}
 
 /**
  * Main analysis function that processes model and spectral files
@@ -61,7 +94,7 @@ async function mockAnalyzeSpectralData(
   request: AnalysisRequest,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResponse> {
-  void request.modelType;
+  const spectrum = generateMockSpectrum(request.modelType);
 
   const steps: ProcessingStep[] = [
     { id: 1, label: "Loading Model", subLabel: "Retrieving trained 1D-CNN model (.h5)", status: "pending" },
@@ -95,9 +128,54 @@ async function mockAnalyzeSpectralData(
     isBt,
     confidence: 92 + Math.random() * 7, // 92-99%
     inferenceTime: 3.5 + Math.random() * 1.5, // 3.5-5.0s
-    dataPoints: 601,
+    dataPoints: spectrum.length,
     wavelengthRange: "4000 - 10000 cm⁻¹",
+    spectrum,
+    spectrumMeta: {
+      xUnit: "cm⁻¹",
+      yUnit: "Absorbance",
+      preprocessing: "Savitzky-Golay smoothing",
+    },
   };
+}
+
+function generateMockSpectrum(modelType: AnalysisRequest["modelType"] = "1d-cnn"): SpectrumPoint[] {
+  const points: SpectrumPoint[] = [];
+  const start = 4000;
+  const end = 10000;
+  const totalPoints = 601;
+  const step = (end - start) / (totalPoints - 1);
+
+  for (let index = 0; index < totalPoints; index++) {
+    const wavelength = start + index * step;
+    const normalized = (wavelength - start) / (end - start);
+
+    const base =
+      0.55 +
+      0.18 * Math.sin(normalized * Math.PI * 2.3) +
+      0.1 * Math.sin(normalized * Math.PI * 7.4 + 0.6);
+
+    const modelOffset = modelType === "svm" ? 0.02 : modelType === "pls-da" ? -0.015 : 0;
+    const peakA = 0.16 * Math.exp(-Math.pow((wavelength - 5200) / 320, 2));
+    const peakB = 0.11 * Math.exp(-Math.pow((wavelength - 7800) / 480, 2));
+    const intensity = base + peakA - peakB + modelOffset + (Math.random() - 0.5) * 0.01;
+
+    points.push({
+      wavelength: Number(wavelength.toFixed(2)),
+      intensity: Number(intensity.toFixed(4)),
+    });
+  }
+
+  return points;
+}
+
+function inferModelHintFromFilename(fileName: string): AnalysisRequest["modelType"] {
+  const normalized = fileName.toLowerCase();
+
+  if (normalized.includes("svm")) return "svm";
+  if (normalized.includes("pls")) return "pls-da";
+
+  return "1d-cnn";
 }
 
 /**

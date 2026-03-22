@@ -1,0 +1,14 @@
+# Virtual Environments
+env/
+venv/
+.venv/
+
+# Python Cache (Compiled python files)
+__pycache__/
+*.py[cod]
+*$py.class
+
+corn-classifier/node_modules/*
+offline-dev/env/*
+offline-dev/venv/*
+offline-dev/.venv/*

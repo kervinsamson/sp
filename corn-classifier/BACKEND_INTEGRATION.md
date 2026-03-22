@@ -60,7 +60,44 @@ Your backend should provide this endpoint:
   "confidence": 96.7,
   "inferenceTime": 4.2,
   "dataPoints": 601,
-  "wavelengthRange": "4000 - 10000 cm⁻¹"
+  "wavelengthRange": "4000 - 10000 cm⁻¹",
+  "spectrum": [
+    { "wavelength": 4000, "intensity": 0.6123 },
+    { "wavelength": 4010, "intensity": 0.6089 }
+  ],
+  "spectrumMeta": {
+    "xUnit": "cm⁻¹",
+    "yUnit": "Absorbance",
+    "preprocessing": "Savitzky-Golay smoothing"
+  }
+}
+```
+
+`spectrum` should be normalized for both `.csv` and `.spa` uploads so the frontend can render a single waveform chart implementation.
+
+For immediate chart display right after upload, provide:
+
+**Endpoint:** `POST /api/preview-spectrum`
+
+**Request:**
+- Content-Type: `multipart/form-data`
+- Fields:
+  - `spectral_data`: File (your `.spa` or `.csv` input)
+
+**Response (JSON):**
+```json
+{
+  "dataPoints": 601,
+  "wavelengthRange": "4000 - 10000 cm⁻¹",
+  "spectrum": [
+    { "wavelength": 4000, "intensity": 0.6123 },
+    { "wavelength": 4010, "intensity": 0.6089 }
+  ],
+  "spectrumMeta": {
+    "xUnit": "cm⁻¹",
+    "yUnit": "Absorbance",
+    "preprocessing": "Raw upload preview"
+  }
 }
 ```
 
@@ -125,7 +162,16 @@ async def analyze(
         "confidence": 96.7,
         "inferenceTime": 4.2,
         "dataPoints": 601,
-        "wavelengthRange": "4000 - 10000 cm⁻¹"
+      "wavelengthRange": "4000 - 10000 cm⁻¹",
+      "spectrum": [
+        {"wavelength": 4000, "intensity": 0.6123},
+        {"wavelength": 4010, "intensity": 0.6089}
+      ],
+      "spectrumMeta": {
+        "xUnit": "cm⁻¹",
+        "yUnit": "Absorbance",
+        "preprocessing": "Savitzky-Golay smoothing"
+      }
     }
 
 @app.get("/health")
