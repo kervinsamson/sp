@@ -1,0 +1,11 @@
+{
+  "paths": {
+    "bt_data_dir": "./my-data/Bt_Corn",
+    "non_bt_data_dir": "./my-data/Non_Bt_Corn",
+    "output_dir": "./artifacts"
+  },
+  "cnn": {
+    "epochs": 50,
+    "batch_size": 32
+  }
+}

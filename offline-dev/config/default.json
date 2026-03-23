@@ -1,0 +1,41 @@
+{
+  "paths": {
+    "bt_data_dir": "./data/Bt_Corn",
+    "non_bt_data_dir": "./data/Non_Bt_Corn",
+    "output_dir": "."
+  },
+  "random": {
+    "seed": 42
+  },
+  "preprocessing": {
+    "savitzky_golay": {
+      "window_length": 11,
+      "polyorder": 2,
+      "deriv": 0,
+      "axis": 1
+    }
+  },
+  "split": {
+    "test_size": 0.2
+  },
+  "pls_da": {
+    "cv_splits": 10,
+    "max_components": 30
+  },
+  "svm": {
+    "cv_splits": 10,
+    "param_grid": {
+      "C": [0.1, 1, 10, 100],
+      "gamma": ["scale", "auto", 0.01, 0.1],
+      "kernel": ["rbf"]
+    }
+  },
+  "cnn": {
+    "epochs": 30,
+    "batch_size": 16,
+    "validation_split": 0.1
+  },
+  "statistics": {
+    "mcnemar_alpha": 0.05
+  }
+}
