@@ -8,6 +8,20 @@ Backend: FastAPI + Uvicorn (port 8000)
 - Node.js 20+
 - Python 3.10+
 
+## From fresh clone (Windows PowerShell)
+
+```powershell
+git clone <your-repo-url>
+cd corn-classifier
+npm install
+npm run setup:dev
+npm run dev
+```
+
+Open:
+- Frontend: `http://localhost:3000`
+- Backend health: `http://localhost:8000/health`
+
 ## One-command setup (recommended)
 
 From `corn-classifier`:
@@ -58,3 +72,18 @@ npm run dev
 This starts both:
 - Next.js frontend (`http://localhost:3000`)
 - FastAPI backend (`http://localhost:8000`)
+
+## Troubleshooting
+
+- Run commands from `corn-classifier` (repo root), not its parent folder.
+- If PowerShell blocks scripts, run:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
+
+- If setup fails, rerun:
+
+```powershell
+npm run setup:dev
+```
