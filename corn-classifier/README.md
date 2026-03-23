@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Corn Classifier
 
-## Getting Started
+Frontend: Next.js (port 3000)  
+Backend: FastAPI + Uvicorn (port 8000)
 
-First, run the development server:
+## Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 20+
+- Python 3.10+
+
+## One-command setup (recommended)
+
+From `corn-classifier`:
+
+```powershell
+npm run setup:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then start development:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## First-time setup (Windows PowerShell)
 
-## Learn More
+From `corn-classifier`:
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r .\backend\requirements.txt
+npm install
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+If script execution is blocked:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
 
-## Deploy on Vercel
+## Environment file
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Create `.env.local` in `corn-classifier`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_USE_MOCK_PREVIEW_API=false
+NEXT_PUBLIC_USE_MOCK_ANALYZE_API=true
+```
+
+## Run dev
+
+```powershell
+npm run dev
+```
+
+This starts both:
+- Next.js frontend (`http://localhost:3000`)
+- FastAPI backend (`http://localhost:8000`)

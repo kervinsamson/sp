@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup:dev": "powershell -ExecutionPolicy Bypass -File .\\scripts\\setup-dev.ps1",
     "dev": "concurrently -k -n frontend,backend \"next dev\" \"npm run backend:dev\"",
-    "backend:dev": "cd backend && ..\\..\\offline-dev\\env\\Scripts\\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "backend:dev": "cd backend && ..\\.venv\\Scripts\\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
