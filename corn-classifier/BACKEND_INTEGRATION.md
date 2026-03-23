@@ -23,14 +23,12 @@ app/
 
 ### Step 1: Update API Configuration
 
-In [`app/services/api.ts`](app/services/api.ts), change these settings:
+In [`app/services/api.ts`](app/services/api.ts), configure mock toggles via env variables:
 
 ```typescript
-// Change this to false when your backend is ready
-const USE_MOCK_API = false;
-
-// Or use environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const USE_MOCK_PREVIEW_API = (process.env.NEXT_PUBLIC_USE_MOCK_PREVIEW_API ?? "true") === "true";
+const USE_MOCK_ANALYZE_API = (process.env.NEXT_PUBLIC_USE_MOCK_ANALYZE_API ?? "true") === "true";
 ```
 
 ### Step 2: Set Environment Variable (Optional)
@@ -39,7 +37,11 @@ Create a `.env.local` file in the project root:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_USE_MOCK_PREVIEW_API=false
+NEXT_PUBLIC_USE_MOCK_ANALYZE_API=true
 ```
+
+Use `NEXT_PUBLIC_USE_MOCK_PREVIEW_API=false` to enable real spectrum preview from FastAPI while keeping analysis in mock mode.
 
 ### Step 3: Backend API Requirements
 
@@ -131,6 +133,17 @@ export async function analyzeSpectralData(
   const result: AnalysisResponse = await response.json();
   return result;
 }
+```
+
+## FastAPI Backend Location
+
+A working backend implementation is included in [`backend/main.py`](backend/main.py).
+
+Start it from `corn-classifier/backend`:
+
+```bash
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ## Example FastAPI Backend Structure

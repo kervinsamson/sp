@@ -11,14 +11,15 @@
 import { AnalysisRequest, AnalysisResponse, ProcessingStep, SpectrumPoint, SpectrumPreviewResponse } from "@/app/types";
 
 // Configuration
-const USE_MOCK_API = true; // Set to false when backend is ready
+const USE_MOCK_ANALYZE_API = (process.env.NEXT_PUBLIC_USE_MOCK_ANALYZE_API ?? "true") === "true";
+const USE_MOCK_PREVIEW_API = (process.env.NEXT_PUBLIC_USE_MOCK_PREVIEW_API ?? "true") === "true";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // Types for progress callback
 type ProgressCallback = (progress: number, steps: ProcessingStep[]) => void;
 
 export async function previewSpectrumFile(spectralFile: File): Promise<SpectrumPreviewResponse> {
-  if (USE_MOCK_API) {
+  if (USE_MOCK_PREVIEW_API) {
     const modelHint = inferModelHintFromFilename(spectralFile.name);
     const spectrum = generateMockSpectrum(modelHint);
 
@@ -37,13 +38,30 @@ export async function previewSpectrumFile(spectralFile: File): Promise<SpectrumP
   const formData = new FormData();
   formData.append("spectral_data", spectralFile);
 
-  const response = await fetch(`${API_BASE_URL}/api/preview-spectrum`, {
-    method: "POST",
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/preview-spectrum`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach backend at ${API_BASE_URL}. Ensure FastAPI is running and CORS allows your frontend origin.`
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(`Spectrum preview failed: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const errorBody = await response.json();
+      if (typeof errorBody?.detail === "string") {
+        detail = errorBody.detail;
+      }
+    } catch {
+      // Ignore non-JSON error body
+    }
+
+    throw new Error(`Spectrum preview failed (${response.status}): ${detail}`);
   }
 
   const preview: SpectrumPreviewResponse = await response.json();
@@ -60,7 +78,7 @@ export async function analyzeSpectralData(
   request: AnalysisRequest,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResponse> {
-  if (USE_MOCK_API) {
+  if (USE_MOCK_ANALYZE_API) {
     return mockAnalyzeSpectralData(request, onProgress);
   }
 
@@ -209,7 +227,7 @@ function simulateProcessing(
  * Health check endpoint (for when backend is deployed)
  */
 export async function checkBackendHealth(): Promise<boolean> {
-  if (USE_MOCK_API) return true;
+  if (USE_MOCK_PREVIEW_API && USE_MOCK_ANALYZE_API) return true;
 
   try {
     const response = await fetch(`${API_BASE_URL}/health`);

@@ -145,7 +145,10 @@ export default function Home() {
       setSpectrumPreview(preview);
     } catch (error) {
       console.error("Spectrum preview failed:", error);
-      setPreviewError("Unable to preview this file. Please verify the .spa/.csv format.");
+      const message = error instanceof Error
+        ? error.message
+        : "Unable to preview this file. Please verify the .spa/.csv format.";
+      setPreviewError(message);
     } finally {
       setIsPreviewLoading(false);
     }
